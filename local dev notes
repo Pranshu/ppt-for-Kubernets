@@ -1,0 +1,307 @@
+Container Local Development Environment
+Getting started with any distributed system that has several components expected to run on different servers can be challenging. Often developers and administrators want to be able to take a new system for a spin before diving straight into a full-fledged deployment on a cluster.
+
+All in one installations are a good remedy to this challenge. They provide a quick way to test a new technology by getting a working setup on a local machine. They can be used by developers in their local workflow and by system administrators to learn the basics of the deployment setup and configuration of various components.
+
+Audience
+Developers
+Continuous Integration (testing)
+Prospective Customers/Users (kick the tires)
+Kubernetes/OpenShift operators
+Goals
+Enable free, local demonstration of the core capabilities of Kubernetes
+Deploy, test, and debug development versions of Kubernetes Services, and built docker container images.
+Decrease the cycle time from local code-change to deployment and testing
+Support multiple use cases to facilitate sharing of pain and gain
+Stay as close to the process of production deployment as possible to reduce maintenance cost of multiple deployment methods
+Facilitate onboarding of new Tectonic users by preferring intuitive usability over complex configuration
+Minimum Requirements
+Install supported operating system (MacOS, Windows 10, Linux) with atleast 8GB of Memory and 4 CPU to assign to the Redhat Virtualbox guest virtual machine.
+Dependencies
+Text Editor, i recommend Visual Studio Code
+Git
+Vagrant v2.2.4+
+VirtualBox v6.0.0+
+VirtualBox Windows download
+VirtualBox MacOS download
+systemd, NFS, resolvconf (Linux only)
+Powershell 5+ and 7zip (windows only requirement)
+Quick Start
+Clone
+
+git clone https://github.ford.com/Containers/localdev
+
+or
+
+git clone git@github.ford.com:Containers/localdev.git
+Switch directory
+
+cd localdev
+Checkout to release you want to install, it is important that you follow release tags to ensure stability of your environment, for example the following command checkout the release v3.11.129-1.
+
+git checkout -b tags/v3.11.129-1
+If you are updating to new version, then you first pull the latest upstream changes, refer to this link to see list of release tags, it also helps to review the release notes
+
+git pull
+To optimze between various OpenShift features and their resource (CPU, Memory), demands we classify OpenShift features into profiles that are controlled via an environment variable LOCAL_DEV_PROFILE following table provides high level overview of supported profiles:
+
+Profile	Supported Features
+build-host	This profile provides a RHEL VM with container tools like docker, podman, buildah, and skopeo to run, build and transport container images (Note: OpenShift WebUI will not work for this profile).
+basic-cnx (default)	Calico/Tigera container networking
+Tigera CNX network policy engine
+NFS dynamic storage
+Application catalog
+OpenShift WebUI
+For example if you would like to deploy the the build-host profile then set these environment variable:
+
+# On MacOS/Linux
+export LOCAL_DEV_PROFILE='build-host'
+# On Windows Powershell
+$env:LOCAL_DEV_PROFILE = 'build-host'
+
+# On Windows legacy command shell
+SET LOCAL_DEV_PROFILE='build-host'
+Execute the commands to install OpenShift Enterprise:
+
+# On fresh install first three commands can be ignored
+vagrant destroy -f
+vagrant box update
+vagrant box prune
+
+vagrant up
+💡 NOTE: If this returns errors then please re-run the command vagrant up --provision again since virtualBox could be flaky.
+
+⚠ NOTE: On windows you should execute these commands in powershell running in administrative context.
+
+☕ Take break, this steps take about 5 - 10 minutes to complete
+
+Access the GUI https://console.oc.local:8443
+Username: admin
+Password: sandbox
+Both oc (OpenShift CLI) and kubectl have been installed ./artifacts/bin, make sure that this directory in your PATH
+Differences Between OC and Kubectl
+A copy of kubectl is included with the oc command line interface (CLI). Although there are several similarities between these two clients, here are few main reasons and scenarios for using one over the other.
+
+Using OC
+The oc binary offers full support for all of the features offered by an {product-title} cluster. It provides functionality not offered by kubectl, such as:
+
+Full support for OpenShift resources (DeploymentConifgs, BuildConfigs, Routes, ImageStreams, ImageStreamTags, etc.). These are resources specific to Openshift, and not native to Kubernetes.
+Authentication: The oc binary offers a built-in login command which allows authentication into a cluster based on specified configuration. See developer authentication and configuring authentication for more information.
+Additional commands, such as new-app, which make it easier to get new applications started using existing source code.
+Using Kubectl
+The kubectl binary is provided as a means to support existing workflows and scripts for users coming from a DIY Kubernetes environment.
+
+Existing users of kubectl can continue to use this binary with no changes to the api, but should consider upgrading to oc in order to gain the added functionality mentioned in the previous section.
+
+See Get Started with the CLI for installation and setup instructions.
+
+Localdev workflow
+Localdev workflow
+
+Default service endpoints
+Component	Details
+All-in-one node	m1.oc.local
+Master/Worker SSH Username / Password	vagrant / vagrant
+SSH Private key	~/.vagrant.d/insecure_private_key
+OpenShift web console	https://console.oc.local:8443
+Default admin username	admin
+Default admin password	sandbox
+Example Namespace	example
+Example Namespace admin user	nsadmin
+Example Namespace admin password	nsadmin
+Example Namespace nsdeveloper user	nsdeveloper
+Example Namespace nsdeveloper password	nsdeveloper
+Example Namespace nsobserver user	nsobserver
+Example Namespace nsobserver password	nsobserver
+Grafana web console	https://grafana-openshift-monitoring.app.oc.local/
+Prometheus web console (Monitoring)	https://prometheus-k8s-openshift-monitoring.app.oc.local/
+Prometheus alert manager	https://alertmanager-main-openshift-monitoring.app.oc.local/
+Tigera CNX Manager	https://cnx-manager.oc.local
+File StorageClass	nfs
+Block StorageClass	rook-ceph-block-replicated
+Wildcard application URI	*.app.oc.local
+KUBECONFIG	./artifacts/.kube/config
+Advanced configurations
+The installer support customization through environment variables, that can be provide at command like for example:
+
+# On MacOS and Linux
+export MASTER_VM_MEMORY='8192'
+export MASTER_VM_CPUS='4'
+# On Windows
+$env:MASTER_VM_MEMORY = '8192'
+$env:MASTER_VM_CPUS = '4'
+If you intend to build images on localdev, then you must pass --network=host option to the build command, for example:
+
+sudo /bin/buildah bud \
+    --format=docker \
+    --network=host \
+    --build-arg http_proxy=$http_proxy \
+    --build-arg HTTP_PROXY=$http_proxy \
+    --build-arg https_proxy=$http_proxy \
+    --build-arg HTTPS_PROXY=$http_proxy \
+    --build-arg no_proxy=$no_proxy \
+    --build-arg NO_PROXY=$no_proxy \
+    --no-cache \
+    --rm=true \
+    --build-arg VCS_REF=$(git rev-parse --short HEAD) \
+    --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+    -t $IMAGE_NAME:$IMAGE_TAG \
+    -f Dockerfile \
+    .
+few important variables are listed below
+
+Environment variable	Default	Commentary
+MASTER_VM_MEMORY	computed (50% of host)	
+MASTER_VM_CPUS	computed (50% of host)	
+DEFAULT_HTTP_PROXY	http://internet.ford.com:83	
+DEFAULT_HTTPS_PROXY	http://internet.ford.com:83	
+DEFAULT_NO_PROXY	computed see source	
+ENABLE_HTTP_PROXY	computed see source	Should http proxy be enabled
+LOCAL_DEV_PROFILE	basic-cnx	Other options include build-host, basic-cnx, netsecurity, logging
+ADDITIONAL_SYNCED_FOLDERS		Sync host folder into the virtual machine
+💡 NOTE: OpenShift localdev is configured out-of-box to support service of type loadbalancer, this would automatically assign an ExternalIP to services, this really useful for TCP services like PostgreSQL, MongoDB etc.
+
+Synced Folders
+Synced folders enable Vagrant to sync a folder on the host machine to the guest machine, allowing you to continue working on your project's files on your host machine, but use the resources in the guest machine to compile or run your project.
+
+By default, Vagrant will share your project directory (the directory with the Vagrantfile) to /home/vagrant/share inside the virtual machine.
+
+If you would like to sync additional host folder then define an environment variable ADDITIONAL_SYNCED_FOLDERS that list a comma delimited strings source1=>destination1, source2=>destination2 for example:
+
+# On Linux & MacOS
+export ADDITIONAL_SYNCED_FOLDERS='/some/directory/on/host/my-dir => /my-dir, /some/directory/on/host/testdir = /home/core/testdir'
+# On Windows
+$env:ADDITIONAL_SYNCED_FOLDERS = 'c:/some/directory/on/host/my-dir => /my-dir,c:/some/directory/on/host/testdir = /home/core/testdir'
+Note that => and = is supported delimiter
+
+Cluster lifecycle management
+The recommended way to shut down a cluster is to destroy it which deletes the VMs along with its disks):
+
+vagrant destroy -f
+If you need to preserve the state of the cluster, use suspend/resume, which stores and restores memory state:
+
+vagrant suspend
+vagrant resume
+Install OpenShift Internal Registry
+Login to the virtual machine by executing vagrant ssh and execute the following commands:
+
+sudo su -
+export HOST_SHARE_PATH='/home/vagrant/share'
+source ${HOST_SHARE_PATH}/templates/openshift/lib-openshift.sh
+install_registry
+💡 NOTE: The registry WebUI will be available at https://registry-console.app.oc.local
+
+Install Rook/Ceph Storage
+Login to the virtual machine by executing vagrant ssh and execute the following commands:
+
+sudo su -
+export HOST_SHARE_PATH='/home/vagrant/share'
+source ${HOST_SHARE_PATH}/templates/openshift/lib-openshift.sh
+install_rook
+⚠ NOTE: This is will cause the VM CPU & Memory resource utilization to increase. Depending upon how much physical resources you have on your host you success may vary.
+
+Install OpenShift Logging
+Login to the virtual machine by executing vagrant ssh and execute the following commands:
+
+sudo su -
+export HOST_SHARE_PATH='/home/vagrant/share'
+export INVENTORY_FILE='/home/vagrant/inventory.ini'
+export ANSIBLE_ROOT='/usr/share/ansible/'
+export ANSIBLE_CONFIG=${HOST_SHARE_PATH}/templates/ansible.cfg
+export REG_AUTH_USER=$(cat /root/.docker/config.json | jq -r '.auths."registry.redhat.io".auth' | base64 --decode | cut -d ':' -f1)
+export REG_AUTH_PASSWORD=$(cat /root/.docker/config.json | jq -r '.auths."registry.redhat.io".auth' | base64 --decode | cut -d ':' -f2)
+
+ansible-playbook -i ${INVENTORY_FILE} \
+    -e "openshift_release='3.11'" \
+    -e "openshift_image_tag=v3.11.141" \
+    -e "openshift_pkg_version=-3.11.141" \
+    -e "oreg_auth_user='${REG_AUTH_USER}'" \
+    -e "oreg_auth_password='${REG_AUTH_PASSWORD}'" \
+    -e 'openshift_rolling_restart_mode=services' \
+    -e "openshift_logging_install_logging=true" \
+    -e  "openshift_logging_kibana_cpu_limit=250m" \
+    -e  "openshift_logging_kibana_memory_limit=512M" \
+    -e  "openshift_logging_kibana_proxy_cpu_limit=250m" \
+    -e  "openshift_logging_kibana_proxy_memory_limit=512M" \
+    -e  "openshift_logging_fluentd_cpu_limit=250m" \
+    -e  "openshift_logging_fluentd_memory_limit=512M" \
+    -e  "openshift_logging_es_cpu_limit=1" \
+    -e  "openshift_logging_es_memory_limit=1024M" \
+    -e  "openshift_logging_elasticsearch_kibana_index_mode=shared_ops" \
+    -e  "openshift_logging_es_pvc_storage_class_name='rook-ceph-block-replicated'" \
+    ${ANSIBLE_ROOT}/openshift-ansible/playbooks/openshift-logging/config.yml
+⚠ NOTE: OpenShift logging puts significant demand on VM CPU & Memory resources. Depending upon how much physical resources you have on your host you success may vary.
+
+⚠ NOTE: To install logging you must install Rook/Ceph Storage first.
+
+What next - Getting Started With Kubernetes & OpenShift
+A lot of people ask “So, How do I get started with Kubernetes” and the great thing is there’s tons of resources out there to get started. Here is a list of those resources that can help you get started with Kubernetes. We will keep updating this list as time goes on.
+
+Ford Training Material
+Crunch Time - Kubernetes part-1
+Crunch Time - Kubernetes part-2
+Redhat OpenShift Overview
+Redhat Container Native Storage (CNS) - Technical Overview
+Introduction To Container Networking with Calico
+Kubernetes Networking - Day 2 Operations
+Documentation
+Kubernetes Documentation
+OpenShift Documentation
+Community
+Kubernetes newsletter
+OpenShift Blog
+Kubernetes Blog
+Last Week in Kubernetes Development
+Kubernetes Videos
+Talking tech with Chuck - Container-as-a-Service
+Kubernetes Webinar Series — Getting Started With Kubernetes
+Kubernetes Technical Overview — Oldie, but a good one
+Kubernetes Tutorial
+Tutorials / Walk throughs
+Kubernetes Bootcamp
+Illustrated Guide to Kubernetes
+4-day Docker and Kubernetes Training
+OpenShift Interactive Learning Portal
+Learn Kubernetes using Interactive Browser-Based Scenarios
+Free online self-paced courses
+Introduction to Kubernetes by Linux Foundation
+Fundamentals of Containers, Kubernetes, and Red Hat OpenShift
+Introduction to Cloud Infrastructure Technologies
+Scalable Microservices with Kubernetes
+Best Practices
+Kubernetes: five steps to well-behaved apps
+Kubernetes Security Best-Practices
+7 best practices for building containers
+7 best practices for operating containers
+10 things to avoid in docker containers
+Ten layers of container security
+Building Optimized Containers for Kubernetes
+Deep Dive - Container & Kubernetes Internals
+A Practical Introduction to Container Terminology
+Kubernetes deep dive: API Server – part 1
+Kubernetes Deep Dive: API Server – Part 2
+Kubernetes Deep Dive: API Server – Part 3a
+Architecting Containers Part 1: Why Understanding User Space vs. Kernel Space Matters
+Architecting Containers Part 2: Why the User Space Matters
+Architecting Containers Part 3: How the User Space Affects Your Application
+An API Perspective on How Kubernetes Works
+How does the Kubernetes scheduler work?
+A container networking overview
+A few things I've learned about Kubernetes
+Embedded & Distributed
+Kubernetes Networking Under the Hood
+How Do I...?
+OpenShift Docs - https://docs.openshift.com/
+Report a Issue - https://github.ford.com/Containers/localdev/issues
+Contribute - https://github.ford.com/Containers/localdev
+Know Issues:
+Localdev does not work when connect to corporate VPN as Cisco AnyConnect client disables split tunneling. On MacOS a possible workaround is to use native Cisco IPSec support instead of Cisco AnyConnect client.
+When switching networks, you must first vagrant suspend and then vagrant resume running localdev instances otherwise name resolution on the host and guest VM will not work properly.
+Localdev DNS server is configured to only support TCP/IP version 4.
+© 2020 GitHub, Inc.
+Help
+Support
+API
+Training
+Blog
+About
